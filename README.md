@@ -1,10 +1,10 @@
-# batCAD
+# BatCAD
 
 **Precision in the dark.**
 
 A fast, minimal 2D CAD drafting tool that runs entirely in your browser: one HTML file, no build step, no install. Black canvas, yellow highlights, nothing in the way.
 
-![batCAD on a pure black canvas with a selected rectangle and winged-blade grips](docs/screenshot.png)
+![BatCAD on a pure black canvas with a selected rectangle and winged-blade grips](docs/screenshot.png)
 
 ## Features
 
@@ -29,7 +29,7 @@ A fast, minimal 2D CAD drafting tool that runs entirely in your browser: one HTM
 
 ## The look
 
-batCAD is a visual reskin built around a classic dark, noir mood:
+BatCAD is a visual reskin built around a classic dark, noir mood:
 
 - Pure black background with near-black panels (always dark, no light theme)
 - Yellow accent for selection, active tools, and the origin axes
@@ -45,19 +45,19 @@ Open `index.html` in any modern browser. To host it, serve the repository root a
 
 Drawings are saved as `.bat` files. A `.bat` file is plain JSON: `{ "format": "batcad", "version": 1, ... }`.
 
-> **Note for Windows users:** `.bat` is also the extension for Windows batch scripts. These files are data, not scripts. Open them from inside batCAD rather than double-clicking them.
+> **Note for Windows users:** `.bat` is also the extension for Windows batch scripts. These files are data, not scripts. Open them from inside BatCAD rather than double-clicking them.
 
-Drawings saved by NinjaCAD (`.nja`, format `ninjacad`) still open in batCAD, and your autosaved NinjaCAD drawing is picked up automatically.
+Drawings saved by NinjaCAD (`.nja`, format `ninjacad`) still open in BatCAD, and your autosaved NinjaCAD drawing is picked up automatically.
 
 ## Credits and origin
 
-batCAD is a **fork of [NinjaCAD](https://github.com/withshalom/ninja)** by Shalom / WithShalom Studios. NinjaCAD is the source of all the drawing, editing, snapping, layer, and file-handling code. batCAD changes the look and feel and a few names; the engine is NinjaCAD's.
+BatCAD is a **fork of [NinjaCAD](https://github.com/withshalom/ninja)** by Shalom / WithShalom Studios. NinjaCAD is the source of all the drawing, editing, snapping, layer, and file-handling code. BatCAD changes the look and feel and a few names; the engine is NinjaCAD's.
 
 Changes from NinjaCAD:
 
-| | NinjaCAD | batCAD |
+| | NinjaCAD | BatCAD |
 |---|---|---|
-| Name and logo | NinjaCAD, four-point star | batCAD, shuriken-bat mark |
+| Name and logo | NinjaCAD, four-point star | BatCAD, shuriken-bat mark |
 | Theme | Dark and light | Pure black only |
 | Accent | Red | Yellow |
 | Selection grips | Diamonds | Winged blades |

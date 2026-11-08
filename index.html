@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>batCAD · Precision in the dark.</title>
+<title>BatCAD · Precision in the dark.</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%3E%3Cpath%20fill='%23d19a00'%20d='M-1%2C-.38L-.34%2C-.22L-.26%2C-.72L0%2C-.4L.26%2C-.72L.34%2C-.22L1%2C-.38Q.9%2C.1%20.58%2C.3Q.52%2C.08%20.3%2C.12Q.2%2C.4%200%2C.62Q-.2%2C.4%20-.3%2C.12Q-.52%2C.08%20-.58%2C.3Q-.9%2C.1%20-1%2C-.38Z'%20transform='translate%2812%2012.5%29%20scale%2811.5%29'/%3E%3C/svg%3E">
 <meta name="theme-color" content="#000000">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -58,7 +58,7 @@ select{border-radius:0}#num,#cmd,#nmIn,dialog{border-radius:0}
 </head>
 <body>
 <header>
-  <button class="brand" id="bMenu" aria-haspopup="menu" aria-expanded="false" aria-label="batCAD menu"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M-1,-.38L-.34,-.22L-.26,-.72L0,-.4L.26,-.72L.34,-.22L1,-.38Q.9,.1 .58,.3Q.52,.08 .3,.12Q.2,.4 0,.62Q-.2,.4 -.3,.12Q-.52,.08 -.58,.3Q-.9,.1 -1,-.38Z" transform="translate(12 12.5) scale(11.5)"/></svg><span><b>BAT</b>CAD</span><span class="car" aria-hidden="true">▾</span></button>
+  <button class="brand" id="bMenu" aria-haspopup="menu" aria-expanded="false" aria-label="BatCAD menu"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M-1,-.38L-.34,-.22L-.26,-.72L0,-.4L.26,-.72L.34,-.22L1,-.38Q.9,.1 .58,.3Q.52,.08 .3,.12Q.2,.4 0,.62Q-.2,.4 -.3,.12Q-.52,.08 -.58,.3Q-.9,.1 -1,-.38Z" transform="translate(12 12.5) scale(11.5)"/></svg><span><b>BAT</b>CAD</span><span class="car" aria-hidden="true">▾</span></button>
   <div class="grp" id="tools" role="group" aria-label="Tools">
     <button data-t="select">Select<kbd>V</kbd></button>
     <button data-t="line">Line<kbd>L</kbd></button>
@@ -336,7 +336,7 @@ Object.assign(CMD,{units:a=>{const v=(a[0]||'').toLowerCase();if(v!='mm'&&v!='in
 {const h0=CMD.help;CMD.help=()=>h0()+' · units mm|in'}
 /* file format v2: named kinds, layer table, units. Old v1 files still open. */
 const toFile=()=>({format:'batcad',version:1,units:'mm',display:UN,layers:Lay.map(y=>({id:y.id,name:y.name,hue:y.hue,visible:y.vis,locked:!!y.lock,dash:!!y.dash,weight:y.w||1})),entities:E.map(o=>{const{t,l,...g}=o;return{kind:t,layer:l||0,...g}})});
-function fromFile(d){if(!d||(d.format!='batcad'&&d.format!='ninjacad'))throw Error('Not a batCAD drawing');const n=clean((d.entities||[]).map(({kind,layer,...g})=>({...g,t:kind,l:layer}))),ly=Array.isArray(d.layers)?d.layers.filter(x=>Number.isInteger(x.id)).map(x=>({id:x.id,name:String(x.name||'Layer '+x.id),hue:num(x.hue)?x.hue:null,vis:x.visible!==false,lock:x.locked===true,dash:x.dash===true,w:num(x.weight)?x.weight:1})):[];return{n,un:d.display=='in'?'in':'mm',ly:ly.length?ly:[{id:0,name:'Layer 0',hue:null,vis:true}]}}
+function fromFile(d){if(!d||(d.format!='batcad'&&d.format!='ninjacad'))throw Error('Not a BatCAD drawing');const n=clean((d.entities||[]).map(({kind,layer,...g})=>({...g,t:kind,l:layer}))),ly=Array.isArray(d.layers)?d.layers.filter(x=>Number.isInteger(x.id)).map(x=>({id:x.id,name:String(x.name||'Layer '+x.id),hue:num(x.hue)?x.hue:null,vis:x.visible!==false,lock:x.locked===true,dash:x.dash===true,w:num(x.weight)?x.weight:1})):[];return{n,un:d.display=='in'?'in':'mm',ly:ly.length?ly:[{id:0,name:'Layer 0',hue:null,vis:true}]}}
 /* document */
 const num=v=>typeof v=='number'&&isFinite(v),pt=p=>Array.isArray(p)&&p.length==2&&p.every(num);
 const valid=o=>o&&(K[o.t]?K[o.t].ok(o):(o.t=='line'||o.t=='rect')&&pt(o.a)&&pt(o.b)||o.t=='circ'&&pt(o.c)&&num(o.r)&&o.r>0);
