@@ -1,5 +1,7 @@
 # BatCAD
 
+*“It’s not the CAD we deserve… it’s the CAD we need.”*
+
 **Precision in the dark.**
 
 A fast, minimal 2D CAD drafting tool that runs entirely in your browser: one HTML file, no build step, no install. Black canvas, yellow highlights, nothing in the way.
