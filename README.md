@@ -16,6 +16,7 @@ A fast, minimal 2D CAD drafting tool that runs entirely in your browser: one HTM
 - **Layers:** per-layer visibility, locking, dashed linetypes and line weights
 - **Units:** work in millimetres or inches; geometry is always stored in mm
 - **Grips:** select an object and drag its winged-blade grips to reshape it
+- **DXF:** open `.dxf` files and export drawings as `.dxf` (lines, arcs, circles, polylines, dimensions, layers, units); polyline arcs become true arcs, blocks are flattened into groups, splines and ellipses become polylines, and text and hatches are skipped with a note
 - **Export:** save drawings as `.bat` files or export clean `.svg`
 - **Touch friendly:** works on phones and tablets as well as desktop
 
@@ -50,6 +51,8 @@ Drawings are saved as `.bat` files. A `.bat` file is plain JSON: `{ "format": "b
 > **Note for Windows users:** `.bat` is also the extension for Windows batch scripts. These files are data, not scripts. Open them from inside BatCAD rather than double-clicking them.
 
 Drawings saved by NinjaCAD (`.nja`, format `ninjacad`) still open in BatCAD, and your autosaved NinjaCAD drawing is picked up automatically.
+
+DXF import and export are available alongside it (R14 ASCII DXF, readable by AutoCAD-class software). The DXF code is adapted from KADlite.
 
 ## Credits and origin
 

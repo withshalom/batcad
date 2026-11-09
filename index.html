@@ -82,9 +82,10 @@ select{border-radius:0}#num,#cmd,#nmIn,dialog{border-radius:0}
     <button id="bIn" aria-label="Zoom in">+</button><button id="bOut" aria-label="Zoom out">&minus;</button><button id="bFit">Fit</button>
   </div>
   <div class="grp">
-    <label class="b">Open .bat<input id="file" type="file" accept=".bat,.nja" aria-label="Open a .bat drawing"></label>
+    <label class="b">Open .bat / .dxf<input id="file" type="file" accept=".bat,.nja,.dxf" aria-label="Open a .bat or .dxf drawing"></label>
     <button id="bSave" class="hide">Save .bat</button>
     <button id="bSvg" class="hide">Export .svg</button>
+    <button id="bDxf" class="hide">Export .dxf</button>
   </div>
 <div class="grp" role="group" aria-label="Layers"><select id="lay" aria-label="Current layer"></select><button id="bLayNew">New layer</button><button id="bLayVis">Hide layer</button><button id="bLayMove">Move selection here</button></div>
 </header>
@@ -96,7 +97,7 @@ select{border-radius:0}#num,#cmd,#nmIn,dialog{border-radius:0}
   <input id="num" class="hide">
   <span id="hint"></span>
 </footer>
-<div id="menu" class="hide" role="menu"><button role="menuitem" data-a="open">Open .bat</button><button role="menuitem" id="mSave" data-a="save">Save .bat</button><button role="menuitem" id="mSvg" data-a="svg">Export .svg</button></div>
+<div id="menu" class="hide" role="menu"><button role="menuitem" data-a="open">Open .bat / .dxf</button><button role="menuitem" id="mSave" data-a="save">Save .bat</button><button role="menuitem" id="mSvg" data-a="svg">Export .svg</button><button role="menuitem" id="mDxf" data-a="dxf">Export .dxf</button></div>
 <dialog id="nmDlg"><form method="dialog"><label>Drawing name<br><input id="nmIn" autocomplete="off" spellcheck="false"> .bat</label><div class="grp"><button type="button" id="nmNo">Cancel</button><button value="ok">Save</button></div></form></dialog>
 <script>
 const $=s=>document.querySelector(s),cv=$('#cv'),cx=cv.getContext('2d'),R6=v=>Math.round(v*1e6)/1e6;
@@ -519,6 +520,207 @@ function toSvg(k=1){
     :o.t=='rect'?`<rect x="${Math.min(o.a[0],o.b[0])}" y="${Math.min(o.a[1],o.b[1])}" width="${Math.abs(o.b[0]-o.a[0])}" height="${Math.abs(o.b[1]-o.a[1])}"/>`
     :`<circle cx="${o.c[0]}" cy="${o.c[1]}" r="${o.r}"/>`).join('');
   return`<svg xmlns="http://www.w3.org/2000/svg" width="${R6((w+2*m)*k)}mm" height="${R6((h+2*m)*k)}mm" viewBox="${R6(b.a[0]-m)} ${R6(-b.b[1]-m)} ${R6(w+2*m)} ${R6(h+2*m)}"><g transform="scale(1 -1)" fill="none" stroke="#000" stroke-width="${R6(sw)}">${body}</g></svg>`}
+/* ===== DXF in and out (ported from KADlite's DXF code) ===== */
+const DXF=(()=>{
+const D2R=Math.PI/180,nrm=a=>((a%TAU)+TAU)%TAU,clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const DIM_GAP=3,DIM_EXT=5,DIM_ARR=3,DIM_TXT=3.5; /* DXF dimension look: arrow size, text height, extension gaps (mm) */
+const DXF_LT={continuous:{d:'Solid line',p:[]},dashed:{d:'Dashed __ __ __',p:[.5,-.25]},center:{d:'Center ___ _ ___',p:[1.25,-.25,.25,-.25]},phantom:{d:'Phantom ___ _ _ ___',p:[1.25,-.25,.25,-.25,.25,-.25]}};
+const INS_MM={0:1,1:25.4,2:304.8,3:1609344,4:1,5:10,6:1000,7:1e6,8:25.4e-6,9:.0254,10:914.4,13:.001,14:100,15:1e4,16:1e5};
+const ACI=(()=>{const t=['#000000','#ff0000','#ffff00','#00ff00','#00ffff','#0000ff','#ff00ff','#ffffff','#808080','#c0c0c0'],
+  hsv=(h,s,v)=>{const k=n=>{const a=(n+h/60)%6;return v-v*s*Math.max(0,Math.min(a,4-a,1))};return'#'+[k(5),k(3),k(1)].map(x=>Math.round(x*255).toString(16).padStart(2,'0')).join('')};
+  for(let i=10;i<250;i++){const k=(i-10)%10;t[i]=hsv(Math.floor((i-10)/10)*15,k%2?.5:1,[1,.65,.5,.3,.15][k>>1])}
+  [51,91,132,173,214,255].forEach((g,i)=>t[250+i]='#'+g.toString(16).padStart(2,'0').repeat(3));return t})();
+const rgb=h=>{const n=parseInt(h.slice(1),16);return[n>>16&255,n>>8&255,n&255]};
+const hexToACI=h=>{if(!/^#[0-9a-fA-F]{6}$/.test(h||''))return 7;const a=rgb(h);let best=7,bd=1/0;for(let i=1;i<256;i++){const b=rgb(ACI[i]),d=(a[0]-b[0])**2+(a[1]-b[1])**2+(a[2]-b[2])**2;if(d<bd){bd=d;best=i}}return best};
+const hslHex=(h,s,l)=>{const a=s*Math.min(l,1-l),k=n=>{const t=(n+h/30)%12;return l-a*Math.max(-1,Math.min(t-3,9-t,1))};return'#'+[k(0),k(8),k(4)].map(x=>Math.round(x*255).toString(16).padStart(2,'0')).join('')};
+const hueOf=hx=>{const[r,g,b]=rgb(hx).map(v=>v/255),mx=Math.max(r,g,b),mn=Math.min(r,g,b),d=mx-mn;if(d<.12||mx<.2)return null;const h=mx==r?((g-b)/d)%6:mx==g?(b-r)/d+2:(r-g)/d+4;return Math.round(((h*60)%360+360)%360)};
+const dxfLtIn=n=>{n=String(n).toUpperCase();return/DASH|HIDDEN/.test(n)?'dashed':/CENTER/.test(n)?'center':/PHANTOM/.test(n)?'phantom':'continuous'};
+const dxfLw=v=>{const x=parseInt(v,10);return x>0?R6(clamp(Math.sqrt(x/25),.6,2.5)):null};
+const LWS=[5,9,13,15,18,20,25,30,35,40,50,53,60,70,80,90,100,106,120,140,158,200,211];
+const lwToDxf=w=>{const mm=25*w*w;return LWS.reduce((b,v)=>Math.abs(v-mm)<Math.abs(b-mm)?v:b,LWS[0])};
+const cleanName=(n,m=255)=>String(n==null?'':n).replace(/[<>"`\u0000-\u001f]/g,'').trim().slice(0,m);
+const mmul=(M,N)=>[M[0]*N[0]+M[2]*N[1],M[1]*N[0]+M[3]*N[1],M[0]*N[2]+M[2]*N[3],M[1]*N[2]+M[3]*N[3],M[0]*N[4]+M[2]*N[5]+M[4],M[1]*N[4]+M[3]*N[5]+M[5]];
+const isId=M=>Math.abs(M[0]-1)+Math.abs(M[1])+Math.abs(M[2])+Math.abs(M[3]-1)+Math.abs(M[4])+Math.abs(M[5])<1e-12;
+const matT=M=>{const det=M[0]*M[3]-M[1]*M[2];return{f:p=>[M[0]*p[0]+M[2]*p[1]+M[4],M[1]*p[0]+M[3]*p[1]+M[5]],k:Math.sqrt(Math.abs(det))||1,flip:det<0,ang:t=>Math.atan2(M[1]*Math.cos(t)+M[3]*Math.sin(t),M[0]*Math.cos(t)+M[2]*Math.sin(t))}};
+function deBoor(cp,kn,deg,t){let s=deg;for(let i=deg;i<cp.length;i++)if(t>=kn[i]&&t<kn[i+1]){s=i;break}
+  const d=[];for(let j=0;j<=deg;j++){const p=cp[j+s-deg];d.push([p[0]*p[2],p[1]*p[2],p[2]])}
+  for(let r=1;r<=deg;r++)for(let j=deg;j>=r;j--){const den=kn[j+1+s-r]-kn[j+s-deg],a=den?(t-kn[j+s-deg])/den:0;d[j]=d[j].map((v,i)=>(1-a)*d[j-1][i]+a*v)}
+  return[d[deg][0]/d[deg][2],d[deg][1]/d[deg][2]]}
+/* a bulge is DXF's way of carrying an arc inside a polyline vertex list */
+function bulge(a,b,bu){const dx=b[0]-a[0],dy=b[1]-a[1],ch=Math.hypot(dx,dy);if(ch<1e-12)return null;const hf=2*Math.atan(bu),sn=Math.sin(hf);if(Math.abs(sn)<1e-12)return null;const r=Math.abs(ch/(2*sn)),h=(ch/2)/Math.tan(hf),c=[(a[0]+b[0])/2-dy/ch*h,(a[1]+b[1])/2+dx/ch*h];return{c,r,a1:Math.atan2(a[1]-c[1],a[0]-c[0]),a2:Math.atan2(b[1]-c[1],b[0]-c[0]),ccw:bu>0}}
+const mkA=(c,r,s,e)=>({t:'arc',c:[R6(c[0]),R6(c[1])],r:R6(r),s:nrm(s),e:nrm(e)});
+/* a vertex list (with bulges) becomes lines/polylines for straight runs and true arcs for bulged segments */
+function polyEnts(P,cl){const n=P.length,pp=P.map(p=>[p.x,p.y]);
+  if(!P.some(p=>p.b)){
+    if(cl&&n==4){const[p,q,r,s]=pp,e=1e-9,h=Math.abs(p[1]-q[1])<e&&Math.abs(q[0]-r[0])<e&&Math.abs(r[1]-s[1])<e&&Math.abs(s[0]-p[0])<e,v=Math.abs(p[0]-q[0])<e&&Math.abs(q[1]-r[1])<e&&Math.abs(r[0]-s[0])<e&&Math.abs(s[1]-p[1])<e;
+      if((h||v)&&Math.abs(p[0]-r[0])>e&&Math.abs(p[1]-r[1])>e)return[{t:'rect',a:p,b:r}]}
+    return[{t:'poly',p:pp,z:cl}]}
+  const out=[],m=cl?n:n-1;let run=[pp[0]];
+  const flush=()=>{if(run.length>2)out.push({t:'poly',p:run,z:false});else if(run.length==2)out.push({t:'line',a:run[0],b:run[1]})};
+  for(let i=0;i<m;i++){const a=pp[i],b=pp[(i+1)%n],g=P[i].b?bulge(a,b,P[i].b):null;
+    if(g){flush();out.push(g.ccw?mkA(g.c,g.r,g.a1,g.a2):mkA(g.c,g.r,g.a2,g.a1));run=[b]}else run.push(b)}
+  flush();return out}
+/* apply a block-insert / unit-scale matrix to one NinjaCAD entity */
+function xfN(o,T){const P=p=>T.f(p).map(R6),n={...o};
+  switch(o.t){
+   case 'line':n.a=P(o.a);n.b=P(o.b);break;
+   case 'circ':n.c=P(o.c);n.r=R6(o.r*T.k);break;
+   case 'arc':{n.c=P(o.c);n.r=R6(o.r*T.k);const s=T.ang(o.s),e=T.ang(o.e);if(T.flip){n.s=nrm(e);n.e=nrm(s)}else{n.s=nrm(s);n.e=nrm(e)}break}
+   case 'poly':n.p=o.p.map(P);break;
+   case 'rect':{const q=[[o.a[0],o.a[1]],[o.b[0],o.a[1]],[o.b[0],o.b[1]],[o.a[0],o.b[1]]].map(P),ax=q.every((p,i)=>{const r=q[(i+1)%4];return Math.abs(p[0]-r[0])<1e-9||Math.abs(p[1]-r[1])<1e-9});
+     if(ax){n.a=q[0];n.b=q[2]}else{const z={t:'poly',p:q,z:true,l:o.l};if(o.g!=null)z.g=o.g;return z}break}
+   case 'dim':{const L=Math.hypot(o.b[0]-o.a[0],o.b[1]-o.a[1])||1,p=[o.a[0]-(o.b[1]-o.a[1])/L*o.d,o.a[1]+(o.b[0]-o.a[0])/L*o.d],a=T.f(o.a),b=T.f(o.b),q=T.f(p),L2=Math.hypot(b[0]-a[0],b[1]-a[1])||1;
+     n.a=a.map(R6);n.b=b.map(R6);n.d=R6(((q[0]-a[0])*(a[1]-b[1])+(q[1]-a[1])*(b[0]-a[0]))/L2);break}}
+  return n}
+function parse(text){
+  if(/^AutoCAD Binary DXF/.test(text))throw Error('Binary DXF is not supported. Save it as ASCII DXF.');
+  const raw=text.split(/\r?\n/),T=[];for(let i=0;i+1<raw.length;i+=2){const c=parseInt(raw[i],10);if(!isNaN(c))T.push([c,raw[i+1]])}
+  const tk=i=>T[i][1].trim(),sec={};
+  for(let i=0;i<T.length-1;i++)if(T[i][0]===0&&tk(i)==='SECTION'&&T[i+1][0]===2){const nm=tk(i+1);let j=i+2;while(j<T.length&&!(T[j][0]===0&&tk(j)==='ENDSEC'))j++;sec[nm]=[i+2,j];i=j}
+  if(!sec.ENTITIES)throw Error('No ENTITIES section found. Is this a DXF file?');
+  let ins=0;if(sec.HEADER)for(let i=sec.HEADER[0];i<sec.HEADER[1];i++)if(T[i][0]===9&&tk(i)==='$INSUNITS'&&T[i+1]&&T[i+1][0]===70){ins=parseInt(T[i+1][1],10)||0;break}
+  const S=INS_MM[ins]||1,layerDefs={};
+  if(sec.TABLES){let cur=null;const flush=()=>{if(cur&&cur.name)layerDefs[cur.name]=cur;cur=null};
+    for(let i=sec.TABLES[0];i<sec.TABLES[1];i++){const[c,v0]=T[i],v=v0.trim();
+      if(c===0){flush();if(v==='LAYER')cur={name:null,color:null,ltype:'continuous',weight:null,visible:true,locked:false};continue}
+      if(!cur)continue;
+      if(c===2)cur.name=cleanName(v);else if(c===70){const fl=parseInt(v,10)||0;cur.locked=!!(fl&4);if(fl&1)cur.visible=false}
+      else if(c===62){const n=parseInt(v,10);if(isFinite(n)){if(n<0)cur.visible=false;cur.color=ACI[Math.abs(n)]||cur.color}}
+      else if(c===420)cur.color='#'+(parseInt(v,10)&0xffffff).toString(16).padStart(6,'0');
+      else if(c===6)cur.ltype=dxfLtIn(v);else if(c===370)cur.weight=dxfLw(v)}
+    flush()}
+  const blocks=new Map();
+  if(sec.BLOCKS){let t=sec.BLOCKS[0];const e=sec.BLOCKS[1];
+    while(t<e){if(!(T[t][0]===0&&tk(t)==='BLOCK')){t++;continue}let name='',bx0=0,by0=0;t++;
+      while(t<e&&T[t][0]!==0){const[c,v]=T[t];if(c===2)name=v.trim();else if(c===10)bx0=parseFloat(v)||0;else if(c===20)by0=parseFloat(v)||0;t++}
+      const st=t;while(t<e&&!(T[t][0]===0&&tk(t)==='ENDBLK'))t++;
+      if(name&&!blocks.has(name.toUpperCase()))blocks.set(name.toUpperCase(),{s:st,e:t,bx:bx0,by:by0})}}
+  const out=[],skipped={},missing=new Set();let inserts=0,tilted=0,capped=0,grpN=0,approx=0;
+  const skip=w=>skipped[w]=(skipped[w]||0)+1;
+  const G=(a,b)=>{const g=new Map();for(let i=a;i<b;i++){const[c,v]=T[i],l=g.get(c);l?l.push(v):g.set(c,[v])}return g};
+  const f=(g,c,d=0)=>{const a=g.get(c),v=a?parseFloat(a[0]):NaN;return isNaN(v)?d:v},s=(g,c,d='')=>{const a=g.get(c);return a?a[0]:d};
+  const QUIET=new Set(['VIEWPORT','ATTDEF','ATTRIB','SEQEND','VERTEX','ENDBLK','ENDSEC','SECTION','EOF']);
+  const OCS=/^(CIRCLE|ARC|LWPOLYLINE|POLYLINE|SOLID|TRACE|INSERT)$/;
+  function walk(st,en,M,depth,inh,top,grp){
+    let i=st;
+    while(i<en){
+      if(T[i][0]!==0){i++;continue}
+      const ty=tk(i);let j=i+1;while(j<en&&T[j][0]!==0)j++;
+      if(ty==='ENDSEC'||ty==='ENDBLK'||ty==='EOF')break;
+      const g=G(i+1,j);
+      if(top&&s(g,67).trim()==='1'){i=j;continue}
+      let L=cleanName(s(g,8,'0'))||'0';if(L==='0'&&inh)L=inh;
+      const ez=f(g,230,1);let Mf=M;
+      if(OCS.test(ty)){if(ez<0)Mf=[-M[0],-M[1],M[2],M[3],M[4],M[5]];else if(Math.abs(f(g,210))>1e-9||Math.abs(f(g,220))>1e-9)tilted++}
+      const emit=o=>{o.l=L;if(grp!=null)o.g=grp;out.push(isId(Mf)?o:xfN(o,matT(Mf)))};
+      switch(ty){
+       case 'LINE':{const a=[f(g,10),f(g,20)],b=[f(g,11),f(g,21)];if(Math.hypot(b[0]-a[0],b[1]-a[1])>1e-12)emit({t:'line',a,b});break}
+       case 'CIRCLE':emit({t:'circ',c:[f(g,10),f(g,20)],r:Math.abs(f(g,40,1))});break;
+       case 'ARC':{const r=Math.abs(f(g,40,1)),sa=f(g,50)*D2R,ea=f(g,51,360)*D2R,sw=nrm(ea-sa);
+        if(sw<1e-9||Math.abs(f(g,51,360)-f(g,50))>=360-1e-9)emit({t:'circ',c:[f(g,10),f(g,20)],r});else emit(mkA([f(g,10),f(g,20)],r,sa,ea));break}
+       case 'POINT':skip('point');break;
+       case 'LWPOLYLINE':{const P=[];let cl=false;
+        for(let k=i+1;k<j;k++){const[c,v]=T[k];if(c===10)P.push({x:parseFloat(v)||0,y:0});else if(c===20&&P.length)P[P.length-1].y=parseFloat(v)||0;else if(c===42&&P.length){const b=parseFloat(v);if(b)P[P.length-1].b=b}else if(c===70)cl=(parseInt(v,10)&1)===1}
+        if(P.length>1)polyEnts(P,cl).forEach(emit);break}
+       case 'POLYLINE':{const fl=parseInt(s(g,70),10)||0;let k=j;const P=[];
+        while(k<en&&T[k][0]===0&&tk(k)==='VERTEX'){let k2=k+1;while(k2<en&&T[k2][0]!==0)k2++;const vg=G(k+1,k2);if(!(f(vg,70)&(16|128)))P.push({x:f(vg,10),y:f(vg,20),...(f(vg,42)?{b:f(vg,42)}:{})});k=k2}
+        if(k<en&&T[k][0]===0&&tk(k)==='SEQEND'){let k2=k+1;while(k2<en&&T[k2][0]!==0)k2++;k=k2}
+        if(fl&(16|64))skip('polygon/polyface mesh');else if(P.length>1)polyEnts(P,(fl&1)===1).forEach(emit);
+        i=k;continue}
+       case 'SOLID':case 'TRACE':{const p=n=>[f(g,10+n),f(g,20+n)],a=p(0),b=p(1),c2=p(2),d=p(3),Q=(d[0]==c2[0]&&d[1]==c2[1])?[a,b,c2]:[a,b,d,c2];emit({t:'poly',p:Q,z:true});break}
+       case 'ELLIPSE':{const cx0=f(g,10),cy0=f(g,20),mx=f(g,11),my=f(g,21),ra=f(g,40,1),sa=f(g,41),ea=f(g,42,TAU),a=Math.hypot(mx,my),b=a*ra,rot=Math.atan2(my,mx),fullE=Math.abs(ea-sa-TAU)<1e-6;
+        if(Math.abs(ra-1)<1e-9&&fullE){emit({t:'circ',c:[cx0,cy0],r:a});break}
+        const sw=nrm(ea-sa)||TAU,n=Math.max(24,Math.ceil(sw*16)),Q=[];for(let k=0;k<=n;k++){const t=sa+sw*k/n,x=a*Math.cos(t),y=b*Math.sin(t);Q.push([cx0+x*Math.cos(rot)-y*Math.sin(rot),cy0+x*Math.sin(rot)+y*Math.cos(rot)])}
+        emit({t:'poly',p:fullE?Q.slice(0,-1):Q,z:fullE});break}
+       case 'SPLINE':{const deg=f(g,71,3),xs=(g.get(10)||[]).map(parseFloat),ys=(g.get(20)||[]).map(parseFloat),ws=(g.get(41)||[]).map(parseFloat),kn=(g.get(40)||[]).map(parseFloat),
+         fx=(g.get(11)||[]).map(parseFloat),fy=(g.get(21)||[]).map(parseFloat),cp=xs.map((x,k)=>[x,ys[k]||0,ws[k]>0?ws[k]:1]);let Q=null;
+        if(cp.length>deg&&kn.length===cp.length+deg+1){const t0=kn[deg],t1=kn[cp.length],n=clamp(cp.length*12,24,3000);Q=[];for(let k=0;k<=n;k++)Q.push(deBoor(cp,kn,deg,Math.min(t0+(t1-t0)*k/n,t1-1e-9)))}
+        else if(fx.length>1){Q=fx.map((x,k)=>[x,fy[k]||0]);approx++}else if(cp.length>1){Q=cp.map(p=>[p[0],p[1]]);approx++}
+        if(Q&&Q.length>1)emit({t:'poly',p:Q,z:false});else skip('spline');break}
+       case 'DIMENSION':{const pv=n=>g.has(n)&&g.has(n+10)?[f(g,n),f(g,n+10)]:null,kind=(parseInt(s(g,70),10)||0)&7;let a=null,b=null;
+        if(kind<2){a=pv(13);b=pv(14);if(a&&b&&kind===0){const r=f(g,50)*D2R,ux=Math.cos(r),uy=Math.sin(r),dx=b[0]-a[0],dy=b[1]-a[1];if(Math.abs(dx*uy-dy*ux)>1e-9){const t=dx*ux+dy*uy;b=[a[0]+t*ux,a[1]+t*uy]}}}
+        else if(kind===3){a=pv(15);b=pv(10)}else if(kind===4){a=pv(10);b=pv(15)}
+        const L=a&&b?Math.hypot(b[0]-a[0],b[1]-a[1]):0;
+        if(L>1e-12){const p=kind<2?pv(10):null;emit({t:'dim',a,b,d:p?R6(((p[0]-a[0])*(a[1]-b[1])+(p[1]-a[1])*(b[0]-a[0]))/L):0})}
+        else skip(kind===2||kind===5?'angular dimension':'dimension');break}
+       case 'INSERT':{const nm=s(g,2).trim().toUpperCase(),B=blocks.get(nm);
+        if(!B){missing.add(nm);break}if(depth>=8){capped++;break}
+        const sx=f(g,41,1),sy=f(g,42,1),rot=f(g,50)*D2R,co=Math.cos(rot),si=Math.sin(rot),cols=clamp(Math.round(f(g,70,1))||1,1,1024),rows=clamp(Math.round(f(g,71,1))||1,1,1024),dc=f(g,44),dr=f(g,45),
+         lay=L==='0'?inh:L;
+        for(let r=0;r<rows&&inserts<1e6;r++)for(let c2=0;c2<cols;c2++){inserts++;
+          const px=f(g,10)+c2*dc*co-r*dr*si,py=f(g,20)+c2*dc*si+r*dr*co,a=co*sx,b=si*sx,c3=-si*sy,d=co*sy;
+          walk(B.s,B.e,mmul(Mf,[a,b,c3,d,px-(a*B.bx+c3*B.by),py-(b*B.bx+d*B.by)]),depth+1,lay,false,grp!=null?grp:++grpN)}
+        break}
+       case 'TEXT':case 'MTEXT':skip('text');break;
+       case 'HATCH':skip('hatch');break;
+       default:if(!QUIET.has(ty))skip(ty.toLowerCase())}
+      i=j}}
+  walk(sec.ENTITIES[0],sec.ENTITIES[1],[S,0,0,S,0,0],0,null,true,null);
+  const used=new Set(out.map(o=>o.l)),order=[...Object.keys(layerDefs).filter(k=>used.has(k)),...[...used].filter(k=>!(k in layerDefs))],id=new Map(order.map((k,i)=>[k,i]));
+  const ly=order.map((k,i)=>{const d=layerDefs[k]||{};return{id:i,name:k,hue:d.color?hueOf(d.color):null,vis:d.visible!==false,lock:!!d.locked,dash:!!d.ltype&&d.ltype!=='continuous',w:d.weight||1}});
+  const n=clean(out.map(o=>({...o,l:id.get(o.l)})));
+  const notes=[];if(ins&&S!==1)notes.push('scaled from '+(ins==1?'inches':ins==2?'feet':ins==6?'metres':ins==5?'centimetres':'file units'));
+  const sk=Object.entries(skipped);if(sk.length)notes.push('skipped '+sk.slice(0,4).map(([k,v])=>v+' '+k).join(', ')+(sk.length>4?', …':''));
+  if(approx)notes.push(approx+' spline'+(approx>1?'s':'')+' approximated from fit points');if(tilted)notes.push(tilted+' tilted 3D entities flattened');if(missing.size)notes.push(missing.size+' missing block'+(missing.size>1?'s':''));if(capped)notes.push('nested blocks capped');
+  return{n,ly:ly.length?ly:[{id:0,name:'Layer 0',hue:null,vis:true}],un:ins==1?'in':'mm',notes}}
+
+function build(){
+  const inch=UN=='in',cvt=v=>inch?v/25.4:v,f=v=>cvt(v).toFixed(6),o=[],P=(...a)=>o.push(...a);
+  const LAYERS={},nm=new Map(),taken=new Set();
+  for(const y of Lay){let n=String(y.name==null?'':y.name).replace(/[<>/\\":;?*|=`\u0000-\u001f]/g,'_').trim().slice(0,255)||'Layer '+y.id;while(taken.has(n.toUpperCase()))n+='_'+y.id;taken.add(n.toUpperCase());nm.set(y.id,n);
+    LAYERS[n]={name:n,color:y.hue==null?'#ffffff':hslHex(y.hue,.65,.48),ltype:y.dash?'dashed':'continuous',weight:y.w||1,visible:y.vis!==false,locked:!!y.lock}}
+  const lyr=e=>nm.get(e.l)||nm.get(Lay[0].id);
+  const dgm=e=>{const q=dimg(e),dx=e.b[0]-e.a[0],dy=e.b[1]-e.a[1],ang=Math.atan2(dy,dx);let ta=ang;if(ta>Math.PI/2||ta<-Math.PI/2)ta+=Math.PI;return{d1:q.a2,d2:q.b2,mid:mid(q.a2,q.b2),ang,pr:ang+Math.PI/2,ta}},dtxt=e=>fv(dimg(e).L)+' '+UN;
+  let h=0x100,owner='0',tbl='0';const H=()=>(++h).toString(16).toUpperCase(),blockRec={},styleH={};
+  const ent=(ty,l,...sc)=>{P('0',ty,'5',H(),'330',owner,'100','AcDbEntity','8',l);for(const x of sc)P('100',x)};
+  const rec=(ty,...sc)=>{const hh=H();P('0',ty,ty=='DIMSTYLE'?'105':'5',hh,'330',tbl);for(const x of sc)P('100',x);return hh};
+  const tStart=(n,c)=>{tbl=H();P('0','TABLE','2',n,'5',tbl,'330','0','100','AcDbSymbolTable','70',String(c))};
+  const bb=bounds(),x0=bb?bb.a[0]:1/0,y0=bb?bb.a[1]:1/0,x1=bb?bb.b[0]:-1/0,y1=bb?bb.b[1]:-1/0,ext=!!bb;
+  P('0','SECTION','2','HEADER','9','$ACADVER','1','AC1014','9','$HANDSEED','5','FFFF');const seedAt=o.length-1;
+  P('9','$INSUNITS','70',inch?'1':'4','9','$MEASUREMENT','70',inch?'0':'1','9','$LTSCALE','40',f(1),'9','$DIMSCALE','40','1.0','9','$DIMTXT','40',f(DIM_TXT),'9','$DIMASZ','40',f(DIM_ARR),'9','$DIMEXE','40',f(DIM_EXT),'9','$DIMEXO','40',f(DIM_GAP),'9','$TEXTSTYLE','7','BATCAD');
+  if(ext)P('9','$EXTMIN','10',f(x0),'20',f(y0),'30','0.0','9','$EXTMAX','10',f(x1),'20',f(y1),'30','0.0');
+  P('0','ENDSEC','0','SECTION','2','TABLES');
+  tStart('VPORT',1);rec('VPORT','AcDbSymbolTableRecord','AcDbViewportTableRecord');
+  P('2','*ACTIVE','70','0','10','0.0','20','0.0','11','1.0','21','1.0','12',f(ext?(x0+x1)/2:0),'22',f(ext?(y0+y1)/2:0),'13','0.0','23','0.0','14','10.0','24','10.0','15','10.0','25','10.0','16','0.0','26','0.0','36','1.0','17','0.0','27','0.0','37','0.0','40',f(ext?Math.max(y1-y0,1):100),'41','1.5','42','50.0','43','0.0','44','0.0','50','0.0','51','0.0','71','0','72','100','73','1','74','3','75','0','76','0','77','0','78','0');
+  P('0','ENDTAB');
+  const lays=Object.values(LAYERS),used=['continuous'];for(const y of lays)if(DXF_LT[y.ltype]&&!used.includes(y.ltype))used.push(y.ltype);
+  tStart('LTYPE',used.length+2);
+  for(const n of['ByBlock','ByLayer']){rec('LTYPE','AcDbSymbolTableRecord','AcDbLinetypeTableRecord');P('2',n,'70','0','3','','72','65','73','0','40','0.0')}
+  for(const k of used){const lt=DXF_LT[k];rec('LTYPE','AcDbSymbolTableRecord','AcDbLinetypeTableRecord');P('2',k.toUpperCase(),'70','0','3',lt.d,'72','65','73',String(lt.p.length),'40',lt.p.reduce((a,v)=>a+Math.abs(cvt(v)),0).toFixed(4));for(const v of lt.p)P('49',cvt(v).toFixed(4),'74','0')}
+  P('0','ENDTAB');
+  const hasZero=!!LAYERS['0'];tStart('LAYER',lays.length+(hasZero?0:1));
+  if(!hasZero){rec('LAYER','AcDbSymbolTableRecord','AcDbLayerTableRecord');P('2','0','70','0','62','7','6','CONTINUOUS','370','-3')}
+  for(const y of lays){const a=hexToACI(y.color);rec('LAYER','AcDbSymbolTableRecord','AcDbLayerTableRecord');P('2',y.name,'70',y.locked?'4':'0','62',String(y.visible===false?-a:a),'6',(DXF_LT[y.ltype]?y.ltype:'continuous').toUpperCase(),'370',String(lwToDxf(y.weight||1)))}
+  P('0','ENDTAB');
+  tStart('STYLE',2);for(const n of['STANDARD','BATCAD']){styleH[n]=rec('STYLE','AcDbSymbolTableRecord','AcDbTextStyleTableRecord');P('2',n,'70','0','40','0.0','41','1.0','50','0.0','71','0','42',f(DIM_TXT),'3','txt','4','')}
+  P('0','ENDTAB');tStart('VIEW',0);P('0','ENDTAB');tStart('UCS',0);P('0','ENDTAB');
+  tStart('APPID',1);rec('APPID','AcDbSymbolTableRecord','AcDbRegAppTableRecord');P('2','ACAD','70','0','0','ENDTAB');
+  tStart('DIMSTYLE',1);P('100','AcDbDimStyleTable','71','1');rec('DIMSTYLE','AcDbSymbolTableRecord','AcDbDimStyleTableRecord');
+  P('2','BATCAD','70','0','40','1.0','41',f(DIM_ARR),'42',f(DIM_GAP),'44',f(DIM_EXT),'140',f(DIM_TXT),'147',f(1),'172','1','271',inch?'3':'2','340',styleH.BATCAD,'0','ENDTAB');
+  const dims=E.filter(e=>e.t=='dim'),dn=new Map();dims.forEach((e,i)=>dn.set(e,'*D'+(i+1)));
+  tStart('BLOCK_RECORD',2+dims.length);for(const b of['*Model_Space','*Paper_Space',...dims.map(e=>dn.get(e))]){blockRec[b]=rec('BLOCK_RECORD','AcDbSymbolTableRecord','AcDbBlockTableRecord');P('2',b,'70','0')}
+  P('0','ENDTAB','0','ENDSEC','0','SECTION','2','BLOCKS');
+  for(const b of['*Model_Space','*Paper_Space']){owner=blockRec[b];ent('BLOCK','0','AcDbBlockBegin');P('2',b,'70','0','10','0.0','20','0.0','30','0.0','3',b,'1','');ent('ENDBLK','0','AcDbBlockEnd')}
+  for(const e of dims){const name=dn.get(e),g=dgm(e),lb=dtxt(e);owner=blockRec[name];ent('BLOCK',lyr(e),'AcDbBlockBegin');P('2',name,'70','1','10','0.0','20','0.0','30','0.0','3',name,'1','');
+    const seg=(a,b)=>{ent('LINE',lyr(e),'AcDbLine');P('10',f(a[0]),'20',f(a[1]),'30','0.0','11',f(b[0]),'21',f(b[1]),'31','0.0')};
+    seg(e.a,g.d1);seg(e.b,g.d2);seg(g.d1,g.d2);
+    const ux=Math.cos(g.ang),uy=Math.sin(g.ang),px=Math.cos(g.pr),py=Math.sin(g.pr),AW=DIM_ARR/3;
+    for(const[tip,dir]of[[g.d1,1],[g.d2,-1]]){const bx0=tip[0]+dir*ux*DIM_ARR,by0=tip[1]+dir*uy*DIM_ARR;ent('SOLID',lyr(e),'AcDbTrace');P('10',f(tip[0]),'20',f(tip[1]),'30','0.0','11',f(bx0+px*AW),'21',f(by0+py*AW),'31','0.0','12',f(bx0-px*AW),'22',f(by0-py*AW),'32','0.0','13',f(bx0-px*AW),'23',f(by0-py*AW),'33','0.0')}
+    ent('TEXT',lyr(e),'AcDbText');P('10',f(g.mid[0]),'20',f(g.mid[1]),'30','0.0','40',f(DIM_TXT),'1',lb,'50',(g.ta/D2R).toFixed(6),'7','BATCAD','72','1','11',f(g.mid[0]),'21',f(g.mid[1]),'31','0.0','100','AcDbText','73','2');
+    ent('ENDBLK',lyr(e),'AcDbBlockEnd')}
+  P('0','ENDSEC','0','SECTION','2','ENTITIES');owner=blockRec['*Model_Space'];
+  const lw=(e,pl,cl)=>{ent('LWPOLYLINE',lyr(e),'AcDbPolyline');P('90',String(pl.length),'70',cl?'1':'0','43','0.0');for(const p of pl)P('10',f(p[0]),'20',f(p[1]))};
+  for(const e of E){const l=lyr(e);
+    if(e.t=='line'){ent('LINE',l,'AcDbLine');P('10',f(e.a[0]),'20',f(e.a[1]),'30','0.0000','11',f(e.b[0]),'21',f(e.b[1]),'31','0.0000')}
+    else if(e.t=='rect')lw(e,corners(e),true);
+    else if(e.t=='circ'){ent('CIRCLE',l,'AcDbCircle');P('10',f(e.c[0]),'20',f(e.c[1]),'30','0.0000','40',f(e.r))}
+    else if(e.t=='arc'){const dg=a=>(nrm(a)/D2R).toFixed(6);ent('ARC',l,'AcDbCircle');P('10',f(e.c[0]),'20',f(e.c[1]),'30','0.0000','40',f(e.r),'100','AcDbArc','50',dg(e.s),'51',dg(e.e))}
+    else if(e.t=='poly')lw(e,e.p,!!e.z);
+    else if(e.t=='dim'){const g=dgm(e);ent('DIMENSION',l,'AcDbDimension');P('2',dn.get(e),'10',f(g.d1[0]),'20',f(g.d1[1]),'30','0.0','11',f(g.mid[0]),'21',f(g.mid[1]),'31','0.0','70','33','1',dtxt(e),'3','BATCAD','100','AcDbAlignedDimension','13',f(e.a[0]),'23',f(e.a[1]),'33','0.0','14',f(e.b[0]),'24',f(e.b[1]),'34','0.0')}}
+  const rootH=H(),grpH=H();
+  P('0','ENDSEC','0','SECTION','2','OBJECTS','0','DICTIONARY','5',rootH,'330','0','100','AcDbDictionary','3','ACAD_GROUP','350',grpH,'0','DICTIONARY','5',grpH,'330',rootH,'100','AcDbDictionary','0','ENDSEC','0','EOF');
+  o[seedAt]=(h+1).toString(16).toUpperCase();return o.join('\n')}
+return{parse,build}})();
 async function dl(name,data){
   if(!DL){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([data],{type:name.endsWith('.svg')?'image/svg+xml':'application/octet-stream'}));a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1e4);say('Saved '+name);return}
   try{await DL.save({filename:name,data});say('Saved '+name)}
@@ -528,22 +730,23 @@ const askName=()=>new Promise(r=>{const d=$('#nmDlg'),i=$('#nmIn');i.value=dname
 $('#nmNo').onclick=()=>$('#nmDlg').close();
 on('#bSave',async()=>{const n=await askName();if(n===null)return;dname=n.replace(/\.(bat|nja)$/i,'').replace(/[\\\/:*?"<>|]+/g,'').trim()||'drawing';dl(dname+'.bat',JSON.stringify(toFile(),null,1))});
 const mnu=$('#menu'),bmn=$('#bMenu'),mclose=()=>{mnu.classList.add('hide');bmn.setAttribute('aria-expanded','false')};
-bmn.onclick=()=>{if(!mnu.classList.contains('hide'))return mclose();const r=bmn.getBoundingClientRect();mnu.style.left=Math.max(4,r.left)+'px';mnu.style.top=r.bottom+4+'px';$('#mSave').disabled=$('#mSvg').disabled=!E.length;mnu.classList.remove('hide');bmn.setAttribute('aria-expanded','true')};
-mnu.onclick=e=>{const b=e.target.closest('button');if(!b||b.disabled)return;mclose();$({open:'#file',save:'#bSave',svg:'#bSvg'}[b.dataset.a]).click()};
+bmn.onclick=()=>{if(!mnu.classList.contains('hide'))return mclose();const r=bmn.getBoundingClientRect();mnu.style.left=Math.max(4,r.left)+'px';mnu.style.top=r.bottom+4+'px';$('#mSave').disabled=$('#mSvg').disabled=$('#mDxf').disabled=!E.length;mnu.classList.remove('hide');bmn.setAttribute('aria-expanded','true')};
+mnu.onclick=e=>{const b=e.target.closest('button');if(!b||b.disabled)return;mclose();$({open:'#file',save:'#bSave',svg:'#bSvg',dxf:'#bDxf'}[b.dataset.a]).click()};
 addEventListener('pointerdown',e=>{if(!mnu.contains(e.target)&&!bmn.contains(e.target))mclose()},true);
 addEventListener('keydown',e=>{if(e.key=='Escape')mclose()});
 on('#bSvg',()=>{if(!E.length)say('Draw something first.');else dl(dname+'.svg',toSvg())});
+on('#bDxf',()=>{if(!E.length)say('Draw something first.');else dl(dname+'.dxf',DXF.build())});
 $('#file').onchange=async e=>{
   const f=e.target.files[0];e.target.value='';if(!f)return;
   try{
-    const d=JSON.parse(await f.text()),r=fromFile(d),n=r.n;
-    if(!n.length)return say('No drawing found in that file.');
-    snapshot();E=n;Lay=r.ly;UN=r.un;cl=Lay[0].id;sel.clear();pts=[];persist();fit();ui();dname=f.name.replace(/\.[^.]+$/,'')||'drawing';say('Opened '+f.name)}
-  catch{say('That file is not a valid drawing.')}};
+    const dx=/\.dxf$/i.test(f.name),txt=await f.text(),r=dx?DXF.parse(txt):fromFile(JSON.parse(txt)),n=r.n;
+    if(!n.length)return say(dx?'That DXF has no drawable lines, arcs, circles or polylines.'+(r.notes.length?' ('+r.notes.join('; ')+')':''):'No drawing found in that file.');
+    snapshot();E=n;Lay=r.ly;UN=r.un;cl=Lay[0].id;sel.clear();pts=[];persist();fit();ui();dname=f.name.replace(/\.[^.]+$/,'')||'drawing';say('Opened '+f.name+(dx&&r.notes.length?' ('+r.notes.join('; ')+')':''))}
+  catch(err){say(/DXF|ENTITIES/.test(err&&err.message||'')?err.message:'That file is not a valid '+(/\.dxf$/i.test(f.name)?'DXF':'drawing')+'.')}};
 let tries=0;
 (function dlInit(){
-  if(window.claude&&window.claude.use)window.claude.use('downloads').then(d=>{DL=d;if(d){$('#bSave').classList.remove('hide');$('#bSvg').classList.remove('hide')}}).catch(()=>{});
-  else if(tries++<8)setTimeout(dlInit,250);else{$('#bSave').classList.remove('hide');$('#bSvg').classList.remove('hide')}})();
+  if(window.claude&&window.claude.use)window.claude.use('downloads').then(d=>{DL=d;if(d){$('#bSave').classList.remove('hide');$('#bSvg').classList.remove('hide');$('#bDxf').classList.remove('hide')}}).catch(()=>{});
+  else if(tries++<8)setTimeout(dlInit,250);else{$('#bSave').classList.remove('hide');$('#bSvg').classList.remove('hide');$('#bDxf').classList.remove('hide')}})();
 
 /* start */
 try{const r=fromFile(JSON.parse(localStorage.getItem('batcad')||localStorage.getItem('ninjacad')||'null'));E=r.n;Lay=r.ly;UN=r.un}catch{}
