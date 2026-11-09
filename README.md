@@ -4,7 +4,7 @@
 
 **Precision in the dark.**
 
-A fast, minimal 2D CAD drafting tool that runs entirely in your browser: one HTML file, no build step, no install. Black canvas, yellow highlights, nothing in the way.
+A fast, minimal 2D CAD drafting tool that runs entirely in your browser: one HTML file, no build step, no install. Black canvas, yellow highlights, nothing in the way. Opens and saves DXF, so it works with AutoCAD-class software.
 
 ![BatCAD on a pure black canvas with a selected rectangle and winged-blade grips](docs/screenshot.png)
 
