@@ -65,7 +65,7 @@ Changes from NinjaCAD:
 | Name and logo | NinjaCAD, four-point star | BatCAD, shuriken-bat mark |
 | Theme | Dark and light | Pure black only |
 | Accent | Red | Yellow |
-| Selection grips | Diamonds | Winged blades |
+| Selection grips | Ninja stars (shurikens) | Winged blades |
 | File extension | `.nja` | `.bat` |
 | Typography | Barlow | Barlow Condensed, uppercase controls |
 
